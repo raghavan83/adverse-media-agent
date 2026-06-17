@@ -1,4 +1,4 @@
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Any, Dict
 from pydantic import BaseModel
 
 class ScreenRequest(BaseModel):
@@ -33,6 +33,7 @@ class ArticleHit(BaseModel):
 class AgentTrace(BaseModel):
     task: str
     output: str
+    metrics: Optional[Dict[str, Any]] = None
 
 class CaseStatusResponse(BaseModel):
     screening_case_id: str
@@ -44,5 +45,8 @@ class CaseStatusResponse(BaseModel):
     evidence_count: int
     retrieval_provider: str | None = None
     duration_ms: int | None = None
+    prompt_tokens_total: int | None = None
+    response_tokens_total: int | None = None
+    llm_metrics: List[Dict[str, Any]] = []
     agent_traces: List[AgentTrace] = []
     articles: List[ArticleHit]

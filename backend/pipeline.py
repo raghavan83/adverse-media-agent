@@ -12,18 +12,33 @@ CASE_STORE = {}
 repo = Repository()
 
 
+def _append_trace(agent_traces, task_name, result):
+    if isinstance(result, tuple) and len(result) == 2:
+        output, metrics = result
+    else:
+        output, metrics = result, None
+    trace = {"task": task_name, "output": output}
+    if metrics:
+        trace["metrics"] = metrics
+    agent_traces.append(trace)
+    return output, metrics
+
+
 def run_screening(payload: ScreenRequest):
     screening_case_id = f"SCN-{uuid4().hex[:10].upper()}"
     start = time.perf_counter()
     llm = get_llm_client()
     agent_traces = []
+    llm_metrics = []
 
-    plan = planner_task(llm, payload.entity_name)
-    agent_traces.append({"task": "planner", "output": plan})
+    plan, plan_metrics = _append_trace(agent_traces, "planner", planner_task(llm, payload.entity_name))
+    if plan_metrics:
+        llm_metrics.append({"task": "planner", **plan_metrics})
 
     raw_articles, provider = retrieve_articles(payload.entity_name, country=payload.country, page_size=10, case_id=screening_case_id)
-    retrieval_eval = retrieval_evaluator_task(llm, raw_articles)
-    agent_traces.append({"task": "retrieval_evaluator", "output": retrieval_eval})
+    retrieval_eval, retrieval_metrics = _append_trace(agent_traces, "retrieval_evaluator", retrieval_evaluator_task(llm, raw_articles))
+    if retrieval_metrics:
+        llm_metrics.append({"task": "retrieval_evaluator", **retrieval_metrics})
 
     articles = []
     for item in raw_articles:
@@ -34,13 +49,17 @@ def run_screening(payload: ScreenRequest):
     risk_score, risk_label = aggregate_case_risk(articles)
     kept_articles = [a for a in articles if a["kept_for_summary"]][:5]
 
-    synthesized = evidence_synthesizer_task(llm, payload.entity_name, kept_articles, risk_label)
-    agent_traces.append({"task": "evidence_synthesizer", "output": synthesized})
-    recommendation = reviewer_advisor_task(llm, risk_label, kept_articles)
-    agent_traces.append({"task": "reviewer_advisor", "output": recommendation})
+    synthesized, synth_metrics = _append_trace(agent_traces, "evidence_synthesizer", evidence_synthesizer_task(llm, payload.entity_name, kept_articles, risk_label))
+    if synth_metrics:
+        llm_metrics.append({"task": "evidence_synthesizer", **synth_metrics})
+    recommendation, reviewer_metrics = _append_trace(agent_traces, "reviewer_advisor", reviewer_advisor_task(llm, risk_label, kept_articles))
+    if reviewer_metrics:
+        llm_metrics.append({"task": "reviewer_advisor", **reviewer_metrics})
 
     summary = synthesized if kept_articles else f"No sufficiently relevant adverse evidence was found for {payload.entity_name}."
     duration_ms = int((time.perf_counter() - start) * 1000)
+    aggregate_prompt_tokens = sum(int(m.get("prompt_tokens", 0)) for m in llm_metrics)
+    aggregate_response_tokens = sum(int(m.get("response_tokens", 0)) for m in llm_metrics)
 
     case = {
         "screening_case_id": screening_case_id,
@@ -52,11 +71,15 @@ def run_screening(payload: ScreenRequest):
         "risk_label": risk_label,
         "risk_score": risk_score,
         "summary": summary,
+        "recommendation": recommendation,
         "evidence_count": len(kept_articles),
         "articles": articles,
         "retrieval_provider": provider,
         "duration_ms": duration_ms,
         "agent_traces": agent_traces,
+        "llm_metrics": llm_metrics,
+        "prompt_tokens_total": aggregate_prompt_tokens,
+        "response_tokens_total": aggregate_response_tokens,
     }
     CASE_STORE[screening_case_id] = case
     repo.save_case(case)

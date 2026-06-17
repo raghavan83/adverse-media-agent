@@ -3,6 +3,7 @@ import os
 import time
 import threading
 from backend.prompts import PLANNER_PROMPT, RETRIEVAL_EVALUATOR_PROMPT, SYNTHESIZER_PROMPT, REVIEWER_ADVISOR_PROMPT
+from backend.metrics import get_gpu_stats, calc_tokens_per_second
 
 logger = logging.getLogger("adverse_media.agents")
 llm_usage_logger = logging.getLogger("adverse_media.llm_usage")
@@ -14,7 +15,7 @@ class MockLLMClient:
     provider = "mock"
     model_name = "mock-agent-model"
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(self, system_prompt: str, user_prompt: str):
         start = time.perf_counter()
         if "planner agent" in system_prompt.lower():
             output = "Plan: retrieve news, validate entity match, filter adverse evidence, synthesize grounded findings, and recommend reviewer action."
@@ -29,9 +30,25 @@ class MockLLMClient:
         duration_ms = int((time.perf_counter() - start) * 1000)
         prompt_chars = len(system_prompt) + len(user_prompt)
         response_chars = len(output)
+        prompt_tokens = max(1, prompt_chars // 4)
+        response_tokens = max(1, response_chars // 4)
+        metrics = {
+            "provider": self.provider,
+            "model": self.model_name,
+            "duration_ms": duration_ms,
+            "prompt_chars": prompt_chars,
+            "response_chars": response_chars,
+            "prompt_tokens": prompt_tokens,
+            "response_tokens": response_tokens,
+            "tokens_per_second": calc_tokens_per_second(response_tokens, duration_ms),
+            "gpu_before": None,
+            "gpu_after": None,
+            "response_preview": output[:300].replace("
+", " "),
+        }
         llm_usage_logger.info("llm call completed", extra={"provider": self.provider, "task": "generate", "status": "SUCCESS", "duration_ms": duration_ms, "error": None})
-        llm_usage_logger.info(f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars}")
-        return output
+        llm_usage_logger.info(f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens={prompt_tokens} response_tokens={response_tokens} tokens_per_second={metrics['tokens_per_second']}")
+        return output, metrics
 
 class TransformersLLMClient:
     provider = "local_transformers"
@@ -43,25 +60,44 @@ class TransformersLLMClient:
         self.model_name = model_name
         self.pipe = pipeline("text-generation", model=model_name, device_map="auto")
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(self, system_prompt: str, user_prompt: str):
         start = time.perf_counter()
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
         prompt = self.pipe.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        prompt_inputs = self.pipe.tokenizer(prompt, return_tensors="pt")
+        prompt_tokens = int(prompt_inputs["input_ids"].shape[1])
+        gpu_before = get_gpu_stats()
         output = self.pipe(prompt, max_new_tokens=self.max_new_tokens, do_sample=self.temperature > 0, temperature=self.temperature)[0]["generated_text"]
+        gpu_after = get_gpu_stats()
         response = output[len(prompt):].strip() if output.startswith(prompt) else output.strip()
         duration_ms = int((time.perf_counter() - start) * 1000)
+        response_inputs = self.pipe.tokenizer(response, return_tensors="pt")
+        response_tokens = int(response_inputs["input_ids"].shape[1]) if response else 0
         prompt_chars = len(prompt)
         response_chars = len(response)
-        prompt_tokens_est = max(1, prompt_chars // 4)
-        response_tokens_est = max(1, response_chars // 4)
+        metrics = {
+            "provider": self.provider,
+            "model": self.model_name,
+            "duration_ms": duration_ms,
+            "prompt_chars": prompt_chars,
+            "response_chars": response_chars,
+            "prompt_tokens": prompt_tokens,
+            "response_tokens": response_tokens,
+            "tokens_per_second": calc_tokens_per_second(response_tokens, duration_ms),
+            "gpu_before": gpu_before,
+            "gpu_after": gpu_after,
+            "response_preview": response[:300].replace("
+", " "),
+        }
         llm_usage_logger.info("llm call completed", extra={"provider": self.provider, "task": "generate", "status": "SUCCESS", "duration_ms": duration_ms, "error": None})
-        llm_usage_logger.info(f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens_est={prompt_tokens_est} response_tokens_est={response_tokens_est}")
-        preview = response[:300].replace("\n", " ")
+        llm_usage_logger.info(f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens={prompt_tokens} response_tokens={response_tokens} tokens_per_second={metrics['tokens_per_second']}")
+        preview = response[:300].replace("
+", " ")
         llm_usage_logger.info(f"llm response preview model={self.model_name} preview={preview}")
-        return response
+        return response, metrics
 
 
 def get_llm_client():
@@ -81,34 +117,51 @@ def get_llm_client():
         model_name = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-3B-Instruct")
         max_new_tokens = int(os.getenv("MAX_NEW_TOKENS", "256"))
         temperature = float(os.getenv("TEMPERATURE", "0.1"))
-        logger.info("initializing llm client", extra={"provider": provider, "task": "init"})
 
-        if enabled:
-            try:
-                _LLM_CLIENT = TransformersLLMClient(model_name=model_name, max_new_tokens=max_new_tokens, temperature=temperature)
-            except Exception as exc:
-                logger.exception("local llm initialization failed; falling back to mock client", extra={"provider": "local_transformers", "task": "init", "status": "FAILED", "error": str(exc)})
-                _LLM_CLIENT = MockLLMClient()
+        if enabled and provider in {"local", "local_transformers", "transformers"}:
+            logger.info("initializing transformers llm client", extra={"provider": provider, "model": model_name, "task": "init"})
+            _LLM_CLIENT = TransformersLLMClient(model_name=model_name, max_new_tokens=max_new_tokens, temperature=temperature)
         else:
+            logger.info("using mock llm client", extra={"provider": "mock", "task": "init"})
             _LLM_CLIENT = MockLLMClient()
-
         return _LLM_CLIENT
 
 
+def _generate_text(llm, system_prompt: str, user_prompt: str):
+    result = llm.generate(system_prompt, user_prompt)
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    return result, None
+
+
 def planner_task(llm, entity_name: str):
-    return llm.generate(PLANNER_PROMPT, f"Target entity: {entity_name}")
+    return _generate_text(llm, PLANNER_PROMPT, f"Entity to assess: {entity_name}")
 
 
-def retrieval_evaluator_task(llm, articles: list[dict]):
-    sample = "\n".join([a.get("title", "") for a in articles[:5]])
-    return llm.generate(RETRIEVAL_EVALUATOR_PROMPT, f"Retrieved titles:\n{sample}")
+def retrieval_evaluator_task(llm, articles):
+    titles = "
+".join([f"- {a.get('title', '')}" for a in articles[:10]]) or "No articles retrieved."
+    return _generate_text(llm, RETRIEVAL_EVALUATOR_PROMPT, f"Evaluate the usefulness of these retrieved items for adverse media screening:
+{titles}")
 
 
-def evidence_synthesizer_task(llm, entity_name: str, kept_articles: list[dict], risk_label: str):
-    bullet_text = "\n".join([f"- {a['title']} | {a['source_name']} | {a['adverse_category']}" for a in kept_articles[:5]])
-    return llm.generate(SYNTHESIZER_PROMPT, f"Entity: {entity_name}\nRisk label: {risk_label}\nEvidence:\n{bullet_text}")
+def evidence_synthesizer_task(llm, entity_name: str, kept_articles, risk_label: str):
+    evidence = []
+    for a in kept_articles[:5]:
+        evidence.append(f"Title: {a['title']} | Source: {a['source_name']} | Category: {a['adverse_category']} | Summary: {a['summary_text']}")
+    evidence_block = "
+".join(evidence) if evidence else "No evidence retained."
+    user_prompt = f"Entity: {entity_name}
+Risk Label: {risk_label}
+Evidence:
+{evidence_block}"
+    return _generate_text(llm, SYNTHESIZER_PROMPT, user_prompt)
 
 
-def reviewer_advisor_task(llm, risk_label: str, kept_articles: list[dict]):
-    count = len(kept_articles)
-    return llm.generate(REVIEWER_ADVISOR_PROMPT, f"Risk label: {risk_label}\nEvidence count: {count}")
+def reviewer_advisor_task(llm, risk_label: str, kept_articles):
+    evidence_count = len(kept_articles)
+    categories = sorted({a['adverse_category'] for a in kept_articles if a.get('adverse_category')})
+    user_prompt = f"Risk label: {risk_label}
+Evidence count: {evidence_count}
+Categories: {', '.join(categories) if categories else 'none'}"
+    return _generate_text(llm, REVIEWER_ADVISOR_PROMPT, user_prompt)
