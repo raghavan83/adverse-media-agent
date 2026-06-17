@@ -106,6 +106,10 @@ class TransformersLLMClient:
 
         tv = types.ModuleType("torchvision")
         transforms = types.ModuleType("torchvision.transforms")
+        transforms.__path__ = []
+        transforms_v2 = types.ModuleType("torchvision.transforms.v2")
+        transforms_v2.__path__ = []
+        transforms_v2_functional = types.ModuleType("torchvision.transforms.v2.functional")
         io_mod = types.ModuleType("torchvision.io")
         datasets_mod = types.ModuleType("torchvision.datasets")
         models_mod = types.ModuleType("torchvision.models")
@@ -124,6 +128,8 @@ class TransformersLLMClient:
             LANCZOS = 1
 
         transforms.InterpolationMode = _InterpolationMode
+        transforms_v2.InterpolationMode = _InterpolationMode
+        transforms_v2.functional = transforms_v2_functional
         extension._has_ops = lambda: False
 
         tv.transforms = transforms
@@ -136,7 +142,9 @@ class TransformersLLMClient:
         tv.extension = extension
 
         tv.__spec__ = importlib.machinery.ModuleSpec("torchvision", loader=None)
-        transforms.__spec__ = importlib.machinery.ModuleSpec("torchvision.transforms", loader=None)
+        transforms.__spec__ = importlib.machinery.ModuleSpec("torchvision.transforms", loader=None, is_package=True)
+        transforms_v2.__spec__ = importlib.machinery.ModuleSpec("torchvision.transforms.v2", loader=None, is_package=True)
+        transforms_v2_functional.__spec__ = importlib.machinery.ModuleSpec("torchvision.transforms.v2.functional", loader=None)
         io_mod.__spec__ = importlib.machinery.ModuleSpec("torchvision.io", loader=None)
         datasets_mod.__spec__ = importlib.machinery.ModuleSpec("torchvision.datasets", loader=None)
         models_mod.__spec__ = importlib.machinery.ModuleSpec("torchvision.models", loader=None)
@@ -147,6 +155,8 @@ class TransformersLLMClient:
 
         sys.modules["torchvision"] = tv
         sys.modules["torchvision.transforms"] = transforms
+        sys.modules["torchvision.transforms.v2"] = transforms_v2
+        sys.modules["torchvision.transforms.v2.functional"] = transforms_v2_functional
         sys.modules["torchvision.io"] = io_mod
         sys.modules["torchvision.datasets"] = datasets_mod
         sys.modules["torchvision.models"] = models_mod
