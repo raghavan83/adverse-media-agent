@@ -2,6 +2,9 @@ import logging
 import os
 import time
 import threading
+
+os.environ.setdefault("TRANSFORMERS_NO_TORCHVISION", "1")
+
 from backend.prompts import PLANNER_PROMPT, RETRIEVAL_EVALUATOR_PROMPT, SYNTHESIZER_PROMPT, REVIEWER_ADVISOR_PROMPT
 from backend.metrics import get_gpu_stats, calc_tokens_per_second
 
@@ -45,7 +48,8 @@ class MockLLMClient:
             "tokens_per_second": calc_tokens_per_second(response_tokens, duration_ms),
             "gpu_before": None,
             "gpu_after": None,
-            "response_preview": output[:300].replace("\n", " "),
+            "response_preview": output[:300].replace("
+", " "),
         }
         llm_usage_logger.info(
             "llm call completed",
@@ -64,37 +68,70 @@ class TransformersLLMClient:
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
         self.model_name = model_name
-        self.pipeline_mode = None
-        self.pipe = None
         self.model = None
         self.tokenizer = None
-
+        self.device = None
         self._init_client()
+
+    def _install_torchvision_stub(self):
+        import sys
+        import types
+        if "torchvision" in sys.modules:
+            for name in [n for n in list(sys.modules.keys()) if n == "torchvision" or n.startswith("torchvision.")]:
+                del sys.modules[name]
+        tv = types.ModuleType("torchvision")
+        transforms = types.ModuleType("torchvision.transforms")
+        class _InterpolationMode:
+            NEAREST = 0
+            NEAREST_EXACT = 0
+            BILINEAR = 2
+            BICUBIC = 3
+            BOX = 4
+            HAMMING = 5
+            LANCZOS = 1
+        transforms.InterpolationMode = _InterpolationMode
+        tv.transforms = transforms
+        tv.io = types.ModuleType("torchvision.io")
+        tv.datasets = types.ModuleType("torchvision.datasets")
+        tv.models = types.ModuleType("torchvision.models")
+        tv.ops = types.ModuleType("torchvision.ops")
+        tv.utils = types.ModuleType("torchvision.utils")
+        tv._meta_registrations = types.ModuleType("torchvision._meta_registrations")
+        extension = types.ModuleType("torchvision.extension")
+        extension._has_ops = lambda: False
+        tv.extension = extension
+        tv.__spec__ = None
+        transforms.__spec__ = None
+        sys.modules["torchvision"] = tv
+        sys.modules["torchvision.transforms"] = transforms
+        sys.modules["torchvision.io"] = tv.io
+        sys.modules["torchvision.datasets"] = tv.datasets
+        sys.modules["torchvision.models"] = tv.models
+        sys.modules["torchvision.ops"] = tv.ops
+        sys.modules["torchvision.utils"] = tv.utils
+        sys.modules["torchvision._meta_registrations"] = tv._meta_registrations
+        sys.modules["torchvision.extension"] = extension
 
     def _init_client(self):
         errors = []
+        try:
+            self._install_torchvision_stub()
+        except Exception as exc:
+            logger.warning("torchvision shim injection failed", extra={"provider": self.provider, "model": self.model_name, "task": "torchvision_shim", "error": str(exc)})
 
         try:
+            import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_name, device_map="auto")
-            self.pipeline_mode = "direct"
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_name, device_map="auto", trust_remote_code=True)
+            self.device = next(self.model.parameters()).device
+            if self.tokenizer.pad_token_id is None and self.tokenizer.eos_token_id is not None:
+                self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
             logger.info("initialized direct transformers model", extra={"provider": self.provider, "model": self.model_name, "task": "init_direct"})
             return
         except Exception as exc:
             errors.append(f"direct_load_failed: {exc}")
-            logger.warning("direct transformers load failed", extra={"provider": self.provider, "model": self.model_name, "task": "init_direct", "error": str(exc)})
-
-        try:
-            from transformers import pipeline
-            self.pipe = pipeline("text-generation", model=self.model_name, device_map="auto")
-            self.tokenizer = self.pipe.tokenizer
-            self.pipeline_mode = "pipeline"
-            logger.info("initialized transformers pipeline", extra={"provider": self.provider, "model": self.model_name, "task": "init_pipeline"})
-            return
-        except Exception as exc:
-            errors.append(f"pipeline_failed: {exc}")
-            logger.warning("transformers pipeline load failed", extra={"provider": self.provider, "model": self.model_name, "task": "init_pipeline", "error": str(exc)})
+            logger.error("direct transformers load failed", extra={"provider": self.provider, "model": self.model_name, "task": "init_direct", "error": str(exc)})
 
         raise RuntimeError(" | ".join(errors))
 
@@ -109,29 +146,25 @@ class TransformersLLMClient:
         prompt_tokens = int(prompt_inputs["input_ids"].shape[1])
         gpu_before = get_gpu_stats()
 
-        if self.pipeline_mode == "direct":
-            input_ids = prompt_inputs["input_ids"].to(self.model.device)
-            attention_mask = prompt_inputs.get("attention_mask")
-            if attention_mask is not None:
-                attention_mask = attention_mask.to(self.model.device)
-            generated = self.model.generate(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                max_new_tokens=self.max_new_tokens,
-                do_sample=self.temperature > 0,
-                temperature=self.temperature,
-                pad_token_id=self.tokenizer.eos_token_id,
-            )
-            new_tokens = generated[0][input_ids.shape[1]:]
-            response = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
-        else:
-            output = self.pipe(
-                prompt,
-                max_new_tokens=self.max_new_tokens,
-                do_sample=self.temperature > 0,
-                temperature=self.temperature,
-            )[0]["generated_text"]
-            response = output[len(prompt):].strip() if output.startswith(prompt) else output.strip()
+        input_ids = prompt_inputs["input_ids"].to(self.device)
+        attention_mask = prompt_inputs.get("attention_mask")
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(self.device)
+
+        gen_kwargs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "max_new_tokens": self.max_new_tokens,
+            "do_sample": self.temperature > 0,
+            "pad_token_id": self.tokenizer.pad_token_id,
+            "eos_token_id": self.tokenizer.eos_token_id,
+        }
+        if self.temperature > 0:
+            gen_kwargs["temperature"] = self.temperature
+
+        generated = self.model.generate(**gen_kwargs)
+        new_tokens = generated[0][input_ids.shape[1]:]
+        response = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
 
         gpu_after = get_gpu_stats()
         duration_ms = int((time.perf_counter() - start) * 1000)
@@ -150,7 +183,8 @@ class TransformersLLMClient:
             "tokens_per_second": calc_tokens_per_second(response_tokens, duration_ms),
             "gpu_before": gpu_before,
             "gpu_after": gpu_after,
-            "response_preview": response[:300].replace("\n", " "),
+            "response_preview": response[:300].replace("
+", " "),
         }
         llm_usage_logger.info(
             "llm call completed",
@@ -159,7 +193,8 @@ class TransformersLLMClient:
         llm_usage_logger.info(
             f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens={prompt_tokens} response_tokens={response_tokens} tokens_per_second={metrics['tokens_per_second']}"
         )
-        preview = response[:300].replace("\n", " ")
+        preview = response[:300].replace("
+", " ")
         llm_usage_logger.info(f"llm response preview model={self.model_name} preview={preview}")
         return response, metrics
 
@@ -184,14 +219,7 @@ def get_llm_client():
 
         if enabled and provider in {"local", "local_transformers", "transformers"}:
             logger.info("initializing transformers llm client", extra={"provider": provider, "model": model_name, "task": "init"})
-            try:
-                _LLM_CLIENT = TransformersLLMClient(model_name=model_name, max_new_tokens=max_new_tokens, temperature=temperature)
-            except Exception as exc:
-                logger.warning(
-                    "local transformers initialization failed; falling back to mock client",
-                    extra={"provider": provider, "model": model_name, "task": "fallback_mock", "error": str(exc)},
-                )
-                _LLM_CLIENT = MockLLMClient()
+            _LLM_CLIENT = TransformersLLMClient(model_name=model_name, max_new_tokens=max_new_tokens, temperature=temperature)
         else:
             logger.info("using mock llm client", extra={"provider": "mock", "task": "init"})
             _LLM_CLIENT = MockLLMClient()
@@ -210,21 +238,29 @@ def planner_task(llm, entity_name: str):
 
 
 def retrieval_evaluator_task(llm, articles):
-    titles = "\n".join([f"- {a.get('title', '')}" for a in articles[:10]]) or "No articles retrieved."
-    return _generate_text(llm, RETRIEVAL_EVALUATOR_PROMPT, f"Evaluate the usefulness of these retrieved items for adverse media screening:\n{titles}")
+    titles = "
+".join([f"- {a.get('title', '')}" for a in articles[:10]]) or "No articles retrieved."
+    return _generate_text(llm, RETRIEVAL_EVALUATOR_PROMPT, f"Evaluate the usefulness of these retrieved items for adverse media screening:
+{titles}")
 
 
 def evidence_synthesizer_task(llm, entity_name: str, kept_articles, risk_label: str):
     evidence = []
     for a in kept_articles[:5]:
         evidence.append(f"Title: {a['title']} | Source: {a['source_name']} | Category: {a['adverse_category']} | Summary: {a['summary_text']}")
-    evidence_block = "\n".join(evidence) if evidence else "No evidence retained."
-    user_prompt = f"Entity: {entity_name}\nRisk Label: {risk_label}\nEvidence:\n{evidence_block}"
+    evidence_block = "
+".join(evidence) if evidence else "No evidence retained."
+    user_prompt = f"Entity: {entity_name}
+Risk Label: {risk_label}
+Evidence:
+{evidence_block}"
     return _generate_text(llm, SYNTHESIZER_PROMPT, user_prompt)
 
 
 def reviewer_advisor_task(llm, risk_label: str, kept_articles):
     evidence_count = len(kept_articles)
     categories = sorted({a['adverse_category'] for a in kept_articles if a.get('adverse_category')})
-    user_prompt = f"Risk label: {risk_label}\nEvidence count: {evidence_count}\nCategories: {', '.join(categories) if categories else 'none'}"
+    user_prompt = f"Risk label: {risk_label}
+Evidence count: {evidence_count}
+Categories: {', '.join(categories) if categories else 'none'}"
     return _generate_text(llm, REVIEWER_ADVISOR_PROMPT, user_prompt)
