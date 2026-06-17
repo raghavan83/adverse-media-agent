@@ -11,6 +11,7 @@ llm_usage_logger = logging.getLogger("adverse_media.llm_usage")
 _LLM_CLIENT = None
 _LLM_LOCK = threading.Lock()
 
+
 class MockLLMClient:
     provider = "mock"
     model_name = "mock-agent-model"
@@ -27,6 +28,7 @@ class MockLLMClient:
             output = "ESCALATE: multiple relevant adverse signals were retained for analyst review."
         else:
             output = "LLM task completed."
+
         duration_ms = int((time.perf_counter() - start) * 1000)
         prompt_chars = len(system_prompt) + len(user_prompt)
         response_chars = len(output)
@@ -43,12 +45,17 @@ class MockLLMClient:
             "tokens_per_second": calc_tokens_per_second(response_tokens, duration_ms),
             "gpu_before": None,
             "gpu_after": None,
-            "response_preview": output[:300].replace("
-", " "),
+            "response_preview": output[:300].replace("\n", " "),
         }
-        llm_usage_logger.info("llm call completed", extra={"provider": self.provider, "task": "generate", "status": "SUCCESS", "duration_ms": duration_ms, "error": None})
-        llm_usage_logger.info(f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens={prompt_tokens} response_tokens={response_tokens} tokens_per_second={metrics['tokens_per_second']}")
+        llm_usage_logger.info(
+            "llm call completed",
+            extra={"provider": self.provider, "task": "generate", "status": "SUCCESS", "duration_ms": duration_ms, "error": None},
+        )
+        llm_usage_logger.info(
+            f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens={prompt_tokens} response_tokens={response_tokens} tokens_per_second={metrics['tokens_per_second']}"
+        )
         return output, metrics
+
 
 class TransformersLLMClient:
     provider = "local_transformers"
@@ -70,7 +77,12 @@ class TransformersLLMClient:
         prompt_inputs = self.pipe.tokenizer(prompt, return_tensors="pt")
         prompt_tokens = int(prompt_inputs["input_ids"].shape[1])
         gpu_before = get_gpu_stats()
-        output = self.pipe(prompt, max_new_tokens=self.max_new_tokens, do_sample=self.temperature > 0, temperature=self.temperature)[0]["generated_text"]
+        output = self.pipe(
+            prompt,
+            max_new_tokens=self.max_new_tokens,
+            do_sample=self.temperature > 0,
+            temperature=self.temperature,
+        )[0]["generated_text"]
         gpu_after = get_gpu_stats()
         response = output[len(prompt):].strip() if output.startswith(prompt) else output.strip()
         duration_ms = int((time.perf_counter() - start) * 1000)
@@ -89,13 +101,16 @@ class TransformersLLMClient:
             "tokens_per_second": calc_tokens_per_second(response_tokens, duration_ms),
             "gpu_before": gpu_before,
             "gpu_after": gpu_after,
-            "response_preview": response[:300].replace("
-", " "),
+            "response_preview": response[:300].replace("\n", " "),
         }
-        llm_usage_logger.info("llm call completed", extra={"provider": self.provider, "task": "generate", "status": "SUCCESS", "duration_ms": duration_ms, "error": None})
-        llm_usage_logger.info(f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens={prompt_tokens} response_tokens={response_tokens} tokens_per_second={metrics['tokens_per_second']}")
-        preview = response[:300].replace("
-", " ")
+        llm_usage_logger.info(
+            "llm call completed",
+            extra={"provider": self.provider, "task": "generate", "status": "SUCCESS", "duration_ms": duration_ms, "error": None},
+        )
+        llm_usage_logger.info(
+            f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens={prompt_tokens} response_tokens={response_tokens} tokens_per_second={metrics['tokens_per_second']}"
+        )
+        preview = response[:300].replace("\n", " ")
         llm_usage_logger.info(f"llm response preview model={self.model_name} preview={preview}")
         return response, metrics
 
@@ -139,29 +154,21 @@ def planner_task(llm, entity_name: str):
 
 
 def retrieval_evaluator_task(llm, articles):
-    titles = "
-".join([f"- {a.get('title', '')}" for a in articles[:10]]) or "No articles retrieved."
-    return _generate_text(llm, RETRIEVAL_EVALUATOR_PROMPT, f"Evaluate the usefulness of these retrieved items for adverse media screening:
-{titles}")
+    titles = "\n".join([f"- {a.get('title', '')}" for a in articles[:10]]) or "No articles retrieved."
+    return _generate_text(llm, RETRIEVAL_EVALUATOR_PROMPT, f"Evaluate the usefulness of these retrieved items for adverse media screening:\n{titles}")
 
 
 def evidence_synthesizer_task(llm, entity_name: str, kept_articles, risk_label: str):
     evidence = []
     for a in kept_articles[:5]:
         evidence.append(f"Title: {a['title']} | Source: {a['source_name']} | Category: {a['adverse_category']} | Summary: {a['summary_text']}")
-    evidence_block = "
-".join(evidence) if evidence else "No evidence retained."
-    user_prompt = f"Entity: {entity_name}
-Risk Label: {risk_label}
-Evidence:
-{evidence_block}"
+    evidence_block = "\n".join(evidence) if evidence else "No evidence retained."
+    user_prompt = f"Entity: {entity_name}\nRisk Label: {risk_label}\nEvidence:\n{evidence_block}"
     return _generate_text(llm, SYNTHESIZER_PROMPT, user_prompt)
 
 
 def reviewer_advisor_task(llm, risk_label: str, kept_articles):
     evidence_count = len(kept_articles)
     categories = sorted({a['adverse_category'] for a in kept_articles if a.get('adverse_category')})
-    user_prompt = f"Risk label: {risk_label}
-Evidence count: {evidence_count}
-Categories: {', '.join(categories) if categories else 'none'}"
+    user_prompt = f"Risk label: {risk_label}\nEvidence count: {evidence_count}\nCategories: {', '.join(categories) if categories else 'none'}"
     return _generate_text(llm, REVIEWER_ADVISOR_PROMPT, user_prompt)
