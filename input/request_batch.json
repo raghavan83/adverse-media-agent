@@ -1,0 +1,16 @@
+[
+  {
+    "entity_name": "Adani",
+    "entity_type": "company",
+    "country": "IN",
+    "known_aliases": [],
+    "industry": "Conglomerate"
+  },
+  {
+    "entity_name": "Donald Trump",
+    "entity_type": "person",
+    "country": "US",
+    "known_aliases": [],
+    "industry": "Politics"
+  }
+]

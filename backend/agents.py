@@ -1,10 +1,14 @@
 import logging
 import os
 import time
+import threading
 from backend.prompts import PLANNER_PROMPT, RETRIEVAL_EVALUATOR_PROMPT, SYNTHESIZER_PROMPT, REVIEWER_ADVISOR_PROMPT
 
 logger = logging.getLogger("adverse_media.agents")
 llm_usage_logger = logging.getLogger("adverse_media.llm_usage")
+
+_LLM_CLIENT = None
+_LLM_LOCK = threading.Lock()
 
 class MockLLMClient:
     provider = "mock"
@@ -25,19 +29,8 @@ class MockLLMClient:
         duration_ms = int((time.perf_counter() - start) * 1000)
         prompt_chars = len(system_prompt) + len(user_prompt)
         response_chars = len(output)
-        llm_usage_logger.info(
-            "llm call completed",
-            extra={
-                "provider": self.provider,
-                "task": "generate",
-                "status": "SUCCESS",
-                "duration_ms": duration_ms,
-                "error": None,
-            },
-        )
-        llm_usage_logger.info(
-            f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars}"
-        )
+        llm_usage_logger.info("llm call completed", extra={"provider": self.provider, "task": "generate", "status": "SUCCESS", "duration_ms": duration_ms, "error": None})
+        llm_usage_logger.info(f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars}")
         return output
 
 class TransformersLLMClient:
@@ -64,38 +57,42 @@ class TransformersLLMClient:
         response_chars = len(response)
         prompt_tokens_est = max(1, prompt_chars // 4)
         response_tokens_est = max(1, response_chars // 4)
-        llm_usage_logger.info(
-            "llm call completed",
-            extra={
-                "provider": self.provider,
-                "task": "generate",
-                "status": "SUCCESS",
-                "duration_ms": duration_ms,
-                "error": None,
-            },
-        )
-        llm_usage_logger.info(
-            f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens_est={prompt_tokens_est} response_tokens_est={response_tokens_est}"
-        )
+        llm_usage_logger.info("llm call completed", extra={"provider": self.provider, "task": "generate", "status": "SUCCESS", "duration_ms": duration_ms, "error": None})
+        llm_usage_logger.info(f"llm prompt/response stats model={self.model_name} prompt_chars={prompt_chars} response_chars={response_chars} prompt_tokens_est={prompt_tokens_est} response_tokens_est={response_tokens_est}")
         preview = response[:300].replace("\n", " ")
         llm_usage_logger.info(f"llm response preview model={self.model_name} preview={preview}")
         return response
 
 
 def get_llm_client():
-    provider = os.getenv("LLM_PROVIDER", "mock")
-    enabled = os.getenv("ENABLE_LOCAL_LLM", "false").lower() == "true"
-    model_name = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-3B-Instruct")
-    max_new_tokens = int(os.getenv("MAX_NEW_TOKENS", "256"))
-    temperature = float(os.getenv("TEMPERATURE", "0.1"))
-    logger.info("initializing llm client", extra={"provider": provider, "task": "init"})
-    if enabled:
-        try:
-            return TransformersLLMClient(model_name=model_name, max_new_tokens=max_new_tokens, temperature=temperature)
-        except Exception as exc:
-            logger.exception("local llm initialization failed; falling back to mock client", extra={"provider": "local_transformers", "task": "init", "status": "FAILED", "error": str(exc)})
-            return MockLLMClient()
-    return MockLLMClient()
+    global _LLM_CLIENT
+
+    if _LLM_CLIENT is not None:
+        logger.info("reusing cached llm client", extra={"provider": getattr(_LLM_CLIENT, "provider", "unknown"), "task": "reuse"})
+        return _LLM_CLIENT
+
+    with _LLM_LOCK:
+        if _LLM_CLIENT is not None:
+            logger.info("reusing cached llm client", extra={"provider": getattr(_LLM_CLIENT, "provider", "unknown"), "task": "reuse"})
+            return _LLM_CLIENT
+
+        provider = os.getenv("LLM_PROVIDER", "mock")
+        enabled = os.getenv("ENABLE_LOCAL_LLM", "false").lower() == "true"
+        model_name = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-3B-Instruct")
+        max_new_tokens = int(os.getenv("MAX_NEW_TOKENS", "256"))
+        temperature = float(os.getenv("TEMPERATURE", "0.1"))
+        logger.info("initializing llm client", extra={"provider": provider, "task": "init"})
+
+        if enabled:
+            try:
+                _LLM_CLIENT = TransformersLLMClient(model_name=model_name, max_new_tokens=max_new_tokens, temperature=temperature)
+            except Exception as exc:
+                logger.exception("local llm initialization failed; falling back to mock client", extra={"provider": "local_transformers", "task": "init", "status": "FAILED", "error": str(exc)})
+                _LLM_CLIENT = MockLLMClient()
+        else:
+            _LLM_CLIENT = MockLLMClient()
+
+        return _LLM_CLIENT
 
 
 def planner_task(llm, entity_name: str):

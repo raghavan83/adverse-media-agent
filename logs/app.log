@@ -1,0 +1,11 @@
+{"timestamp": "2026-06-17T08:18:30.302627Z", "level": "INFO", "logger": "adverse_media.agents", "message": "initializing llm client", "provider": "mock", "task": "init"}
+{"timestamp": "2026-06-17T08:18:30.302627Z", "level": "INFO", "logger": "adverse_media.llm_usage", "message": "llm call completed", "provider": "mock", "status": "SUCCESS", "duration_ms": 0, "task": "generate"}
+{"timestamp": "2026-06-17T08:18:30.302627Z", "level": "INFO", "logger": "adverse_media.llm_usage", "message": "llm prompt/response stats model=mock-agent-model prompt_chars=246 response_chars=129"}
+{"timestamp": "2026-06-17T08:18:31.008117Z", "level": "INFO", "logger": "adverse_media.retrieval", "message": "NewsAPI retrieval completed", "case_id": "SCN-07223DECE5", "provider": "newsapi", "entity_name": "Adani", "status": "SUCCESS", "article_count": 10}
+{"timestamp": "2026-06-17T08:18:31.028883Z", "level": "INFO", "logger": "adverse_media.llm_usage", "message": "llm call completed", "provider": "mock", "status": "SUCCESS", "duration_ms": 0, "task": "generate"}
+{"timestamp": "2026-06-17T08:18:31.028883Z", "level": "INFO", "logger": "adverse_media.llm_usage", "message": "llm prompt/response stats model=mock-agent-model prompt_chars=505 response_chars=187"}
+{"timestamp": "2026-06-17T08:18:31.032449Z", "level": "INFO", "logger": "adverse_media.llm_usage", "message": "llm call completed", "provider": "mock", "status": "SUCCESS", "duration_ms": 0, "task": "generate"}
+{"timestamp": "2026-06-17T08:18:31.032449Z", "level": "INFO", "logger": "adverse_media.llm_usage", "message": "llm prompt/response stats model=mock-agent-model prompt_chars=754 response_chars=170"}
+{"timestamp": "2026-06-17T08:18:31.032449Z", "level": "INFO", "logger": "adverse_media.llm_usage", "message": "llm call completed", "provider": "mock", "status": "SUCCESS", "duration_ms": 0, "task": "generate"}
+{"timestamp": "2026-06-17T08:18:31.032449Z", "level": "INFO", "logger": "adverse_media.llm_usage", "message": "llm prompt/response stats model=mock-agent-model prompt_chars=173 response_chars=77"}
+{"timestamp": "2026-06-17T08:18:31.113093Z", "level": "INFO", "logger": "adverse_media.pipeline", "message": "screening completed", "case_id": "SCN-07223DECE5", "provider": "newsapi", "entity_name": "Adani", "status": "COMPLETED", "duration_ms": 726, "article_count": 10}
