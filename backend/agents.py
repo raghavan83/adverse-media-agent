@@ -1,3 +1,4 @@
+import importlib.machinery
 import logging
 import os
 import threading
@@ -105,6 +106,13 @@ class TransformersLLMClient:
 
         tv = types.ModuleType("torchvision")
         transforms = types.ModuleType("torchvision.transforms")
+        io_mod = types.ModuleType("torchvision.io")
+        datasets_mod = types.ModuleType("torchvision.datasets")
+        models_mod = types.ModuleType("torchvision.models")
+        ops_mod = types.ModuleType("torchvision.ops")
+        utils_mod = types.ModuleType("torchvision.utils")
+        meta_mod = types.ModuleType("torchvision._meta_registrations")
+        extension = types.ModuleType("torchvision.extension")
 
         class _InterpolationMode:
             NEAREST = 0
@@ -116,27 +124,35 @@ class TransformersLLMClient:
             LANCZOS = 1
 
         transforms.InterpolationMode = _InterpolationMode
-        tv.transforms = transforms
-        tv.io = types.ModuleType("torchvision.io")
-        tv.datasets = types.ModuleType("torchvision.datasets")
-        tv.models = types.ModuleType("torchvision.models")
-        tv.ops = types.ModuleType("torchvision.ops")
-        tv.utils = types.ModuleType("torchvision.utils")
-        tv._meta_registrations = types.ModuleType("torchvision._meta_registrations")
-        extension = types.ModuleType("torchvision.extension")
         extension._has_ops = lambda: False
+
+        tv.transforms = transforms
+        tv.io = io_mod
+        tv.datasets = datasets_mod
+        tv.models = models_mod
+        tv.ops = ops_mod
+        tv.utils = utils_mod
+        tv._meta_registrations = meta_mod
         tv.extension = extension
-        tv.__spec__ = None
-        transforms.__spec__ = None
+
+        tv.__spec__ = importlib.machinery.ModuleSpec("torchvision", loader=None)
+        transforms.__spec__ = importlib.machinery.ModuleSpec("torchvision.transforms", loader=None)
+        io_mod.__spec__ = importlib.machinery.ModuleSpec("torchvision.io", loader=None)
+        datasets_mod.__spec__ = importlib.machinery.ModuleSpec("torchvision.datasets", loader=None)
+        models_mod.__spec__ = importlib.machinery.ModuleSpec("torchvision.models", loader=None)
+        ops_mod.__spec__ = importlib.machinery.ModuleSpec("torchvision.ops", loader=None)
+        utils_mod.__spec__ = importlib.machinery.ModuleSpec("torchvision.utils", loader=None)
+        meta_mod.__spec__ = importlib.machinery.ModuleSpec("torchvision._meta_registrations", loader=None)
+        extension.__spec__ = importlib.machinery.ModuleSpec("torchvision.extension", loader=None)
 
         sys.modules["torchvision"] = tv
         sys.modules["torchvision.transforms"] = transforms
-        sys.modules["torchvision.io"] = tv.io
-        sys.modules["torchvision.datasets"] = tv.datasets
-        sys.modules["torchvision.models"] = tv.models
-        sys.modules["torchvision.ops"] = tv.ops
-        sys.modules["torchvision.utils"] = tv.utils
-        sys.modules["torchvision._meta_registrations"] = tv._meta_registrations
+        sys.modules["torchvision.io"] = io_mod
+        sys.modules["torchvision.datasets"] = datasets_mod
+        sys.modules["torchvision.models"] = models_mod
+        sys.modules["torchvision.ops"] = ops_mod
+        sys.modules["torchvision.utils"] = utils_mod
+        sys.modules["torchvision._meta_registrations"] = meta_mod
         sys.modules["torchvision.extension"] = extension
 
     def _init_client(self):
