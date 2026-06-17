@@ -38,3 +38,11 @@ For AMD systems, install ROCm-enabled PyTorch wheels and `transformers`/`acceler
 
 ## LLM observability
 This version logs LLM usage details including provider, model, latency, prompt/response size estimates, and response preview snippets. This helps you demonstrate model usage during the hackathon and troubleshoot inference behavior.
+
+
+## Headless mode
+You can run the complete screening pipeline without FastAPI or Streamlit:
+```bash
+python run_screening.py --input input/request_adani.json --output-dir outputs
+```
+This mode is ideal for AMD notebook environments with browser or port restrictions.

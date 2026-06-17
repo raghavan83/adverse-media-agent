@@ -1,0 +1,187 @@
+{
+  "screening_case_id": "SCN-07223DECE5",
+  "status": "COMPLETED",
+  "entity_name": "Adani",
+  "entity_type": "company",
+  "country": "IN",
+  "industry": "Conglomerate",
+  "risk_label": "HIGH",
+  "risk_score": 83,
+  "summary": "Grounded summary: The retained articles indicate potentially adverse signals linked to the target entity. Reviewer should validate source context before a final decision.",
+  "evidence_count": 5,
+  "articles": [
+    {
+      "title": "US clean chit for Adani after Iran deal, offer to invest $10 billion",
+      "summary_text": "The US Department of Justice permanently dropped all criminal charges against Gautam Adani and his nephew Sagar Adani, bringing high-profile securities and wire fraud case in New York to a complete close after prosecutors concluded they could not sustain the … The Donald Trump-led US administration moved to dismiss criminal fraud charges against Gautam Adani on Monday, while also settling alleged Iran sanctions violations involving his flagship Adani Enter… [+4616 chars]",
+      "source_name": "The Indian Express",
+      "source_url": "https://indianexpress.com/article/business/adani-enterprises-us-sanctions-iran-settlement-sec-lawsuit-dropped-10696300/",
+      "published_at": "2026-05-18T15:30:53Z",
+      "entity_match_score": 1.0,
+      "relevance_score": 0.991,
+      "credibility_score": 0.75,
+      "severity_score": 0.98,
+      "adverse_category": "sanctions",
+      "matched_keywords": [
+        "fraud",
+        "sanctions"
+      ],
+      "kept_for_summary": true
+    },
+    {
+      "title": "US Treasury, India's Adani Enterprises settle alleged Iran sanctions violations",
+      "summary_text": "WASHINGTON, May 18 (Reuters) - The U.S. WASHINGTON, May 18 (Reuters) - The U.S. Department of Treasury on Monday said it had agreed to a $275 million settlement with India's Adani Enterprises Ltd over the company's potential civil liabilit… [+819 chars]",
+      "source_name": "Yahoo Entertainment",
+      "source_url": "https://finance.yahoo.com/economy/policy/articles/us-treasury-announces-275-million-142254817.html",
+      "published_at": "2026-05-18T14:25:24Z",
+      "entity_match_score": 1.0,
+      "relevance_score": 0.991,
+      "credibility_score": 0.75,
+      "severity_score": 0.98,
+      "adverse_category": "sanctions",
+      "matched_keywords": [
+        "sanctions"
+      ],
+      "kept_for_summary": true
+    },
+    {
+      "title": "US prosecutors drop fraud charges against billionaire Indian businessman Gautam Adani",
+      "summary_text": "If you click 'Accept all', we and our partners, including 247 who are part of the IAB Transparency &amp; Consent Framework, will also store and / or access information on a device (in other words, us… [+1046 chars]",
+      "source_name": "Yahoo Entertainment",
+      "source_url": "https://consent.yahoo.com/v2/collectConsent?sessionId=1_cc-session_072c3ea7-79a3-4537-9c0f-fe5a20c10776",
+      "published_at": "2026-05-18T16:36:57Z",
+      "entity_match_score": 1.0,
+      "relevance_score": 0.978,
+      "credibility_score": 0.75,
+      "severity_score": 0.95,
+      "adverse_category": "fraud",
+      "matched_keywords": [
+        "fraud"
+      ],
+      "kept_for_summary": true
+    },
+    {
+      "title": "US drops fraud charges after billionaire Adani pledges $10bn investment",
+      "summary_text": "Adani was accused of bribing Indian officials and misleading US investors to secure a solar power plant project in India. The administration of United States President Donald Trump has moved to dismiss criminal fraud charges against Indian billionaire Gautam Adani in a case where he is accused of bribing Indian official… [+3257 chars]",
+      "source_name": "Al Jazeera English",
+      "source_url": "https://www.aljazeera.com/economy/2026/5/18/us-drops-fraud-charges-after-billionaire-adani-pledges-10bn-investment",
+      "published_at": "2026-05-18T21:02:25Z",
+      "entity_match_score": 1.0,
+      "relevance_score": 0.978,
+      "credibility_score": 0.75,
+      "severity_score": 0.95,
+      "adverse_category": "fraud",
+      "matched_keywords": [
+        "fraud"
+      ],
+      "kept_for_summary": true
+    },
+    {
+      "title": "Gautam Adani’s Net Worth Swells By $2 Billion—Becomes Asia’s Richest Person",
+      "summary_text": "Adani’s fortune steadily declined following since-dismissed allegations of fraud brought by the U.S. Gautam Adanis fortune increased by roughly $2.5 billion on Friday as shares rallied across his Adani Group subsidiaries, making him the richest person in Asia ahead of Mukesh Ambani, who briefly held… [+2757 chars]",
+      "source_name": "Forbes",
+      "source_url": "https://www.forbes.com/sites/tylerroush/2026/06/05/gautam-adanis-net-worth-swells-by-2-billion-becomes-asias-richest-person/",
+      "published_at": "2026-06-05T14:33:11Z",
+      "entity_match_score": 1.0,
+      "relevance_score": 0.978,
+      "credibility_score": 0.75,
+      "severity_score": 0.95,
+      "adverse_category": "fraud",
+      "matched_keywords": [
+        "fraud"
+      ],
+      "kept_for_summary": true
+    },
+    {
+      "title": "U.S. prosecutors drop fraud charges against billionaire Indian businessman",
+      "summary_text": "The Department of Justice said Monday that it would drop its criminal fraud charges against billionaire Indian businessman Gautam Adani, marking a significant reversal in a high-profile case. The Justice Department said Monday that it would drop its criminal fraud charges against billionaire Indian businessman Gautam Adani, a significant reversal in a high-profile case. \r\nSubscribe to rea… [+2593 chars]",
+      "source_name": "NBC News",
+      "source_url": "https://www.nbcnews.com/world/asia/us-drops-charges-billionaire-indian-businessman-gautam-adani-rcna345809",
+      "published_at": "2026-05-19T02:52:18Z",
+      "entity_match_score": 1.0,
+      "relevance_score": 0.978,
+      "credibility_score": 0.75,
+      "severity_score": 0.95,
+      "adverse_category": "fraud",
+      "matched_keywords": [
+        "fraud"
+      ],
+      "kept_for_summary": true
+    },
+    {
+      "title": "Daily Briefing: Centre hikes petrol, diesel prices by 90 paise; second increase in a week",
+      "summary_text": "In today's edition: Manipur ethnic tensions worsen, Adani gets clean chit from US Treasury, and more In a second fuel price hike in less than a week, petrol and diesel prices were increased by 90 paise per litre on Tuesday, further adding to the burden on consumers amid rising inflationary pressures… [+6340 chars]",
+      "source_name": "The Indian Express",
+      "source_url": "https://indianexpress.com/article/live-news/top-news-today-daily-briefing-centre-hikes-petrol-diesel-prices-90-paise-10696768/",
+      "published_at": "2026-05-19T03:22:34Z",
+      "entity_match_score": 1.0,
+      "relevance_score": 0.573,
+      "credibility_score": 0.75,
+      "severity_score": 0.05,
+      "adverse_category": "other",
+      "matched_keywords": [],
+      "kept_for_summary": true
+    },
+    {
+      "title": "‘Spoke to Adani’: Suvendu Adhikari shifts Tajpur deep-sea port plan to Dadanpatrabar",
+      "summary_text": "Sonowal meets CM, discusses investments to make Bengal a maritime hub The BJP government in West Bengal on Thursday unveiled a new plan for its deep-sea port project, shifting it from Tajpur to almost 10km away to the coastal town of Dadanpatrabar. Announcing the decis… [+7244 chars]",
+      "source_name": "The Indian Express",
+      "source_url": "https://indianexpress.com/article/india/spoke-to-adani-suvendu-shifts-tajpur-deep-sea-port-plan-to-dadanpatrabar-10724650/",
+      "published_at": "2026-06-04T22:44:14Z",
+      "entity_match_score": 1.0,
+      "relevance_score": 0.573,
+      "credibility_score": 0.75,
+      "severity_score": 0.05,
+      "adverse_category": "other",
+      "matched_keywords": [],
+      "kept_for_summary": true
+    },
+    {
+      "title": "Heads, Trump Wins",
+      "summary_text": "Tails, he still wins—at taxpayers’ expense. This is an edition of The Atlantic Daily, a newsletter that guides you through the biggest stories of the day, helps you discover new ideas, and recommends the best in culture. Sign up for it here.Ye… [+10406 chars]",
+      "source_name": "The Atlantic",
+      "source_url": "https://www.theatlantic.com/newsletters/2026/05/trump-corruption-irs-fund/687227/",
+      "published_at": "2026-05-19T22:41:00Z",
+      "entity_match_score": 0.201,
+      "relevance_score": 0.133,
+      "credibility_score": 0.75,
+      "severity_score": 0.05,
+      "adverse_category": "other",
+      "matched_keywords": [],
+      "kept_for_summary": false
+    },
+    {
+      "title": "Marco Rubio visits India: What’s at stake with Trump-Modi ties strained?",
+      "summary_text": "Rubio is taking an extended trip ahead of next week's Quad meeting of foreign ministers. United States Secretary of State Marco Rubio will travel to India on Saturday for a three-day visit taking in Kolkata, Agra, Jaipur and New Delhi.\r\nHe will discuss energy security, trade and defence … [+5756 chars]",
+      "source_name": "Al Jazeera English",
+      "source_url": "https://www.aljazeera.com/news/2026/5/22/marco-rubio-visits-india-whats-at-stake-with-trump-modi-ties-strained",
+      "published_at": "2026-05-22T14:41:58Z",
+      "entity_match_score": 0.1,
+      "relevance_score": 0.078,
+      "credibility_score": 0.75,
+      "severity_score": 0.05,
+      "adverse_category": "other",
+      "matched_keywords": [],
+      "kept_for_summary": false
+    }
+  ],
+  "retrieval_provider": "newsapi",
+  "duration_ms": 726,
+  "agent_traces": [
+    {
+      "task": "planner",
+      "output": "Plan: retrieve news, validate entity match, filter adverse evidence, synthesize grounded findings, and recommend reviewer action."
+    },
+    {
+      "task": "retrieval_evaluator",
+      "output": "The retrieved set appears useful for screening because it contains entity-relevant titles that can be scored for adverse relevance. Human validation is still required for ambiguous names."
+    },
+    {
+      "task": "evidence_synthesizer",
+      "output": "Grounded summary: The retained articles indicate potentially adverse signals linked to the target entity. Reviewer should validate source context before a final decision."
+    },
+    {
+      "task": "reviewer_advisor",
+      "output": "ESCALATE: multiple relevant adverse signals were retained for analyst review."
+    }
+  ]
+}

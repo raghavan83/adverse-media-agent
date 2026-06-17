@@ -1,0 +1,18 @@
+[
+  {
+    "task": "planner",
+    "output": "Plan: retrieve news, validate entity match, filter adverse evidence, synthesize grounded findings, and recommend reviewer action."
+  },
+  {
+    "task": "retrieval_evaluator",
+    "output": "The retrieved set appears useful for screening because it contains entity-relevant titles that can be scored for adverse relevance. Human validation is still required for ambiguous names."
+  },
+  {
+    "task": "evidence_synthesizer",
+    "output": "Grounded summary: The retained articles indicate potentially adverse signals linked to the target entity. Reviewer should validate source context before a final decision."
+  },
+  {
+    "task": "reviewer_advisor",
+    "output": "ESCALATE: multiple relevant adverse signals were retained for analyst review."
+  }
+]
