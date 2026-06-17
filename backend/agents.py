@@ -61,11 +61,42 @@ class TransformersLLMClient:
     provider = "local_transformers"
 
     def __init__(self, model_name: str, max_new_tokens: int = 256, temperature: float = 0.1):
-        from transformers import pipeline
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
         self.model_name = model_name
-        self.pipe = pipeline("text-generation", model=model_name, device_map="auto")
+        self.pipeline_mode = None
+        self.pipe = None
+        self.model = None
+        self.tokenizer = None
+
+        self._init_client()
+
+    def _init_client(self):
+        errors = []
+
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_name, device_map="auto")
+            self.pipeline_mode = "direct"
+            logger.info("initialized direct transformers model", extra={"provider": self.provider, "model": self.model_name, "task": "init_direct"})
+            return
+        except Exception as exc:
+            errors.append(f"direct_load_failed: {exc}")
+            logger.warning("direct transformers load failed", extra={"provider": self.provider, "model": self.model_name, "task": "init_direct", "error": str(exc)})
+
+        try:
+            from transformers import pipeline
+            self.pipe = pipeline("text-generation", model=self.model_name, device_map="auto")
+            self.tokenizer = self.pipe.tokenizer
+            self.pipeline_mode = "pipeline"
+            logger.info("initialized transformers pipeline", extra={"provider": self.provider, "model": self.model_name, "task": "init_pipeline"})
+            return
+        except Exception as exc:
+            errors.append(f"pipeline_failed: {exc}")
+            logger.warning("transformers pipeline load failed", extra={"provider": self.provider, "model": self.model_name, "task": "init_pipeline", "error": str(exc)})
+
+        raise RuntimeError(" | ".join(errors))
 
     def generate(self, system_prompt: str, user_prompt: str):
         start = time.perf_counter()
@@ -73,20 +104,38 @@ class TransformersLLMClient:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-        prompt = self.pipe.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        prompt_inputs = self.pipe.tokenizer(prompt, return_tensors="pt")
+        prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        prompt_inputs = self.tokenizer(prompt, return_tensors="pt")
         prompt_tokens = int(prompt_inputs["input_ids"].shape[1])
         gpu_before = get_gpu_stats()
-        output = self.pipe(
-            prompt,
-            max_new_tokens=self.max_new_tokens,
-            do_sample=self.temperature > 0,
-            temperature=self.temperature,
-        )[0]["generated_text"]
+
+        if self.pipeline_mode == "direct":
+            input_ids = prompt_inputs["input_ids"].to(self.model.device)
+            attention_mask = prompt_inputs.get("attention_mask")
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(self.model.device)
+            generated = self.model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=self.max_new_tokens,
+                do_sample=self.temperature > 0,
+                temperature=self.temperature,
+                pad_token_id=self.tokenizer.eos_token_id,
+            )
+            new_tokens = generated[0][input_ids.shape[1]:]
+            response = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+        else:
+            output = self.pipe(
+                prompt,
+                max_new_tokens=self.max_new_tokens,
+                do_sample=self.temperature > 0,
+                temperature=self.temperature,
+            )[0]["generated_text"]
+            response = output[len(prompt):].strip() if output.startswith(prompt) else output.strip()
+
         gpu_after = get_gpu_stats()
-        response = output[len(prompt):].strip() if output.startswith(prompt) else output.strip()
         duration_ms = int((time.perf_counter() - start) * 1000)
-        response_inputs = self.pipe.tokenizer(response, return_tensors="pt")
+        response_inputs = self.tokenizer(response, return_tensors="pt")
         response_tokens = int(response_inputs["input_ids"].shape[1]) if response else 0
         prompt_chars = len(prompt)
         response_chars = len(response)
@@ -135,7 +184,14 @@ def get_llm_client():
 
         if enabled and provider in {"local", "local_transformers", "transformers"}:
             logger.info("initializing transformers llm client", extra={"provider": provider, "model": model_name, "task": "init"})
-            _LLM_CLIENT = TransformersLLMClient(model_name=model_name, max_new_tokens=max_new_tokens, temperature=temperature)
+            try:
+                _LLM_CLIENT = TransformersLLMClient(model_name=model_name, max_new_tokens=max_new_tokens, temperature=temperature)
+            except Exception as exc:
+                logger.warning(
+                    "local transformers initialization failed; falling back to mock client",
+                    extra={"provider": provider, "model": model_name, "task": "fallback_mock", "error": str(exc)},
+                )
+                _LLM_CLIENT = MockLLMClient()
         else:
             logger.info("using mock llm client", extra={"provider": "mock", "task": "init"})
             _LLM_CLIENT = MockLLMClient()
